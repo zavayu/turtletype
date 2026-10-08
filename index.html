@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#182b28" />
+    <title>TurtleType</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="#test" aria-label="TurtleType home">
+          <svg class="brand-symbol" viewBox="0 0 52 40" fill="none" aria-hidden="true">
+            <path d="M8 20C8 12 15 6 24 6s16 6 16 14-7 14-16 14S8 28 8 20Z" fill="currentColor"/>
+            <path d="M40 16h3a5 5 0 0 1 0 10h-3" fill="currentColor"/>
+            <path d="m10 16-6 4 6 4M15 8l-4-5M33 8l4-5M15 32l-4 5M33 32l4 5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M24 8v24M10 20h28M15 11l18 18M33 11 15 29" stroke="var(--color-shell-line)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          turtletype
+        </a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-link active" data-view="test" type="button">test</button>
+          <button class="nav-link" data-view="insights" type="button">insights</button>
+          <button class="nav-link" data-view="practice" type="button">practice</button>
+        </nav>
+      </header>
+
+      <main>
+        <section id="test-view" class="view active" aria-label="Typing test">
+          <div class="test-center">
+            <div class="mode-controls">
+              <div class="mode-bar" role="group" aria-label="Test length">
+                <button class="mode-option selected" data-test-kind="time" type="button">time</button>
+                <button class="mode-option" data-test-kind="words" type="button">count</button>
+                <span class="mode-divider" aria-hidden="true"></span>
+                <button class="mode-option" data-test-amount="15" type="button">15</button>
+                <button class="mode-option selected" data-test-amount="30" type="button">30</button>
+                <button class="mode-option" data-test-amount="60" type="button">60</button>
+              </div>
+              <div class="mode-bar" role="group" aria-label="Text style">
+                <button class="mode-option selected" data-text-style="words" type="button">words</button>
+                <button class="mode-option" data-text-style="punctuation" type="button">punctuation</button>
+                <button class="mode-option" data-text-style="sentences" type="button">sentences</button>
+              </div>
+            </div>
+            <div id="test-running" class="typing-area">
+              <div class="test-status"><span id="live-time" class="time-left">30</span><span id="live-wpm" class="live-wpm">0 wpm</span></div>
+              <div id="test-surface" class="typing-surface">
+                <div class="words-viewport"><div id="test-words" class="words-track"></div></div>
+                <textarea id="test-input" class="typing-input" aria-label="Type the displayed words" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+                <span class="focus-prompt">click to focus</span>
+              </div>
+              <button id="restart-test" class="restart-button" type="button" aria-label="Restart test">↻</button>
+            </div>
+            <div id="test-result" class="result-view" hidden></div>
+          </div>
+        </section>
+
+        <section id="insights-view" class="view" aria-labelledby="insights-heading">
+          <div class="section-heading"><h1 id="insights-heading">insights</h1></div>
+          <div id="insights-content"></div>
+        </section>
+
+        <section id="practice-view" class="view" aria-labelledby="practice-heading">
+          <div class="section-heading"><h1 id="practice-heading">practice</h1></div>
+          <div class="practice-mode-bar" role="group" aria-label="Practice mode">
+            <button class="mode-option selected" data-practice-mode="focus" type="button">focus</button>
+            <button class="mode-option" data-practice-mode="sprint" type="button">word sprint</button>
+          </div>
+          <div id="practice-content"></div>
+        </section>
+      </main>
+
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
