@@ -1,4 +1,6 @@
 export function buildPracticeSet(analysis, wordBank, keyWords, requestedPattern = null) {
+  // Prefer a requested or well-supported pattern, then fall back to the
+  // strongest available signal and finally to general vocabulary.
   const focus = requestedPattern
     || analysis.longPatterns.find((pattern) => pattern.status === 'supported')
     || analysis.pairs.find((pattern) => pattern.status === 'supported')
@@ -14,6 +16,8 @@ export function buildPracticeSet(analysis, wordBank, keyWords, requestedPattern 
   const fallback = general.length ? general : warmup;
   const fullFocus = requestedPattern || focus?.status === 'supported';
   const focusedSlots = focusWords.length >= 3 ? (fullFocus ? 16 : 8) : focusWords.length ? (fullFocus ? 10 : 5) : 0;
+  // Reserve the first slots for focused words before shuffling the finished
+  // line so practice remains targeted without feeling repetitive.
   const words = Array.from({ length: 24 }, (_, index) => {
     const pool = index < focusedSlots ? focusWords : fallback;
     return pool[Math.floor(Math.random() * pool.length)];

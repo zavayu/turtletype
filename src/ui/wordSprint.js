@@ -21,6 +21,7 @@ export function createWordSprint(root, getAnalysis, saveRun) {
   let cleared = 0;
   let surface, track, input, elapsed, goal, feedback, count, levelButtons;
 
+  // Stop timers and preserve an unfinished attempt before replacing the UI.
   function stop() {
     active = false;
     clearTimeout(nextTimer);
@@ -35,6 +36,8 @@ export function createWordSprint(root, getAnalysis, saveRun) {
     stopRun(run);
     run.caret.hidden = true;
     const elapsedMs = Math.max(1, Math.round(performance.now() - run.startedAt));
+    // A sprint only clears when every character is correct before the target
+    // time; misses are saved so the history reflects all attempts.
     const clean = run.events.every((event) => event.correct);
     const passed = !timedOut && clean && elapsedMs <= run.targetMs;
     run.sprint = { difficulty, targetWpm, word: currentWord, targetMs: run.targetMs, elapsedMs, passed, timedOut };
@@ -60,6 +63,7 @@ export function createWordSprint(root, getAnalysis, saveRun) {
     if (run) stopRun(run);
     currentWord = requestedWord || chooseSprintWord(difficulty, getAnalysis(), COMMON_WORDS, currentWord);
     if (!currentWord) return;
+    // Replacing the textarea removes listeners from the previous word.
     const freshInput = input.cloneNode();
     input.replaceWith(freshInput);
     input = freshInput;

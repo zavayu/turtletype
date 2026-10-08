@@ -4,6 +4,7 @@ export function accuracyFromEvents(events) {
   return correct / events.length * 100;
 }
 
+// Keep displayed percentages readable while preserving detail near 100%.
 export function formatPercent(value) {
   if (value === null || !Number.isFinite(value)) return '—';
   if (value >= 100) return '100%';

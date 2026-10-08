@@ -1,5 +1,7 @@
 const MAX_PATTERN_LENGTH = 5;
 
+// Timing and ranking use medians so one unusually slow keypress does not
+// dominate a user's baseline.
 export function median(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -26,6 +28,8 @@ function addWord(map, item) {
 
 function collectDetailedPatterns(session, patterns, baselineIntervals, words) {
   if (!session.prompt || !Array.isArray(session.actions)) return;
+  // Group retries by prompt position. This lets the analysis distinguish a
+  // mistake from a later corrected attempt at the same character.
   const attemptsByIndex = new Map();
   for (const action of session.actions) {
     if (action.type !== 'type' || !Number.isInteger(action.index)) continue;
@@ -86,6 +90,8 @@ function summarizePatterns(patterns, baselineMs) {
       ? Math.round((medianMs / baselineMs - 1) * 100)
       : null;
     const wordCount = record.words.size;
+    // Require repeated evidence from multiple words before labeling a pattern
+    // as supported.
     const status = record.attempts >= 8 && wordCount >= 2 ? 'supported' : 'early';
     const errorRate = record.errors / record.attempts;
     const evidence = Math.min(1, record.attempts / 12) * Math.min(1, wordCount / 2);
@@ -101,6 +107,8 @@ export function chooseDistinctPatterns(patterns, minLength, maxLength, limit = 5
     .filter((pattern) => pattern.text.length >= minLength && pattern.text.length <= maxLength)
     .filter((pattern) => pattern.errors > 0 || (pattern.attempts >= 3 && (pattern.slowdown ?? 0) >= 15))
     .sort((a, b) => Number(b.status === 'supported') - Number(a.status === 'supported') || b.score - a.score);
+  // Avoid showing nested patterns together, since they usually describe the
+  // same typing problem.
   const chosen = [];
   for (const candidate of candidates) {
     if (chosen.some((item) => item.text.includes(candidate.text) || candidate.text.includes(item.text))) continue;
@@ -111,6 +119,8 @@ export function chooseDistinctPatterns(patterns, minLength, maxLength, limit = 5
 }
 
 export function analyzeSessions(sessions) {
+  // Completed tests form the baseline; practice attempts are summarized
+  // separately so training does not change test performance metrics.
   const tests = sessions.filter((session) => session.mode !== 'practice' && session.completed !== false)
     .map((session) => {
       const inputs = Array.isArray(session.actions)
@@ -165,15 +175,12 @@ export function analyzeSessions(sessions) {
     group.sessions.push(session);
     practiceGroups.set(text, group);
   }
-  const timedTests = tests.filter((session) => typeof session.wpm === 'number' && Number.isFinite(session.wpm));
-
   return {
     tests,
     practice,
     totalAttempts,
     incorrectAttempts: totalAttempts - correctAttempts,
     accuracy: totalAttempts ? correctAttempts / totalAttempts * 100 : null,
-    averageWpm: timedTests.length ? Math.round(timedTests.reduce((sum, session) => sum + session.wpm, 0) / timedTests.length) : null,
     baselineMs,
     patterns: patternStats,
     longPatterns: chooseDistinctPatterns(patternStats, 3, 5),

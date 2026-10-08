@@ -5,6 +5,8 @@ const node = (tag, className = '', text = '') => {
   return element;
 };
 
+// Keep all state for one typing attempt together so tests and practice modes
+// can share the same input and rendering logic.
 export function createRun(mode, words, track, surface, input, handlers = {}) {
   return {
     mode, words, target: words.join(' '), track, surface, input, handlers,
@@ -15,6 +17,8 @@ export function createRun(mode, words, track, surface, input, handlers = {}) {
   };
 }
 
+// Render each character separately so correctness and caret position can
+// update without rebuilding the prompt after every keypress.
 export function renderPrompt(run) {
   const fragment = document.createDocumentFragment();
   run.charEls = [];
@@ -51,6 +55,8 @@ export function positionCaret(run) {
   run.caret.style.transform = `translate3d(${character.offsetLeft}px, ${y}px, 0)`;
 }
 
+// Accuracy uses typed characters only; corrections do not remove earlier
+// attempts from the recorded event history.
 export function correctPositions(run) {
   return run.typed.reduce((total, char, index) => total + Number(char === run.target[index]), 0);
 }
@@ -95,6 +101,8 @@ function recordWord(run, now) {
   run.wordErrors = 0;
 }
 
+// Record one character event, update the visible prompt, and notify the
+// owning view about progress or completion.
 function typeCharacter(run, char) {
   if (run.finished || run.cursor >= run.target.length || char.length !== 1 || char === '\n') return;
   markTyping(run);
@@ -120,6 +128,8 @@ function typeCharacter(run, char) {
   if (run.cursor === run.target.length) run.handlers.onComplete?.(run);
 }
 
+// Backspace changes the current cursor position but keeps the original
+// character attempt in the action history.
 function backspace(run) {
   if (run.finished) return;
   markTyping(run);
@@ -138,6 +148,8 @@ function backspace(run) {
   run.handlers.onChange?.(run);
 }
 
+// beforeinput handles normal keyboards and mobile input consistently, while
+// the input fallback covers virtual keyboards that skip that event.
 export function bindInput(run) {
   run.input.value = '';
   run.input.addEventListener('paste', (event) => {

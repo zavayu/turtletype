@@ -2,7 +2,8 @@ import './styles.css';
 import { accuracyFromEvents, formatAccuracy } from './analytics/metrics.js';
 import { analyzeSessions } from './analytics/analysis.js';
 import { loadSessions, saveSession } from './data/storage.js';
-import { COMMON_WORDS, KEY_WORDS } from './data/wordBank.js';
+import { COMMON_WORDS, EXTENDED_WORDS, KEY_WORDS, WORD_CORPUS_VERSION } from './data/wordBank.js';
+import { choosePassage, PASSAGE_CORPUS_VERSION } from './data/passages.js';
 import { renderInsights } from './ui/insights.js';
 import { createWordSprint } from './ui/wordSprint.js';
 import { buildPracticeSet } from './practice/buildPracticeSet.js';
@@ -11,7 +12,8 @@ import { bindInput, completedWords, correctPositions, createRun, elapsedSeconds,
 
 const $ = (selector) => document.querySelector(selector);
 const node = (tag, className = '', text = '') => { const el = document.createElement(tag); el.className = className; el.textContent = text; return el; };
-const testConfig = { kind: 'time', amount: 30, style: 'words' };
+const testConfig = { kind: 'time', amount: 30, style: 'words', bank: 'common', passageLength: 'short' };
+const recentPassages = [];
 let testRun;
 let practiceRun;
 let practiceMode = 'focus';
@@ -19,6 +21,9 @@ let sprintMounted = false;
 let sessionsCache = [];
 let analysisCache = null;
 const currentAnalysis = () => analysisCache || (analysisCache = analyzeSessions(sessionsCache));
+
+// Keep the live display independent from the final session record so it can
+// update frequently without rebuilding the rest of the interface.
 function updateLive() {
   if (!testRun || testRun.finished) return;
   const elapsed = elapsedSeconds(testRun);
@@ -32,9 +37,11 @@ function persistRun(run, completed) {
   if (!run || run.saved || !run.actions.length) return null;
   run.saved = true;
   const elapsedMs = Math.max(1, performance.now() - run.startedAt);
+  // Store raw actions as well as summary values so later analysis can inspect
+  // timing, retries, and character positions.
   const session = {
     id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: run.mode,
     completed,
     date: new Date().toISOString(),
@@ -49,6 +56,13 @@ function persistRun(run, completed) {
     testKind: run.testKind || null,
     testLimit: run.limit || null,
     textStyle: run.textStyle || null,
+    corpusTier: run.corpusTier || null,
+    corpusVersion: run.corpusVersion || null,
+    passageId: run.passage?.id || null,
+    passageTitle: run.passage?.title || null,
+    passageAuthor: run.passage?.author || null,
+    passageSourceUrl: run.passage?.sourceUrl || null,
+    passageLength: run.passage?.length || null,
     promptWordCount: countWords(run.target),
     practiceKind: run.practiceKind || null,
     sprint: run.sprint || null,
@@ -65,20 +79,26 @@ function resetTest(focus = false) {
   // The test input is reused, so replace it to remove listeners from the previous run.
   const freshInput = input.cloneNode();
   input.replaceWith(freshInput);
-  const prompt = makePrompt(testConfig.style, testConfig.kind === 'time' ? 320 : testConfig.amount, COMMON_WORDS);
+  const isPassage = testConfig.style === 'passage';
+  const passage = isPassage ? choosePassage(testConfig.passageLength, [...sessionsCache.map(session => session.passageId), ...recentPassages].filter(Boolean)) : null;
+  if (passage) recentPassages.push(passage.id);
+  const prompt = passage?.text || makePrompt(testConfig.style, testConfig.kind === 'time' ? 320 : testConfig.amount, testConfig.bank === 'extended' ? EXTENDED_WORDS : COMMON_WORDS);
   testRun = createRun('test', prompt.split(' '), $('#test-words'), $('#test-surface'), freshInput, {
     onStart: (run) => { if (run.testKind === 'time') run.timer = setInterval(updateLive, 100); },
     onChange: updateLive,
     onComplete: finishTest,
     onEscape: () => resetTest(true),
   });
-  testRun.testKind = testConfig.kind;
-  testRun.limit = testConfig.amount;
+  testRun.testKind = isPassage ? 'passage' : testConfig.kind;
+  testRun.limit = isPassage ? passage.wordCount : testConfig.amount;
   testRun.textStyle = testConfig.style;
+  testRun.corpusTier = isPassage ? null : testConfig.bank;
+  testRun.corpusVersion = isPassage ? PASSAGE_CORPUS_VERSION : WORD_CORPUS_VERSION;
+  testRun.passage = passage;
   testRun.surface.classList.remove('has-started');
   renderPrompt(testRun);
   bindInput(testRun);
-  $('#live-time').textContent = testConfig.kind === 'time' ? String(testConfig.amount) : `0 / ${testConfig.amount}`;
+  $('#live-time').textContent = testRun.testKind === 'time' ? String(testConfig.amount) : `0 / ${testRun.limit}`;
   $('#live-wpm').textContent = '0 wpm';
   $('#test-running').hidden = false;
   $('#test-result').hidden = true;
@@ -105,6 +125,13 @@ function finishTest() {
   insights.type = 'button'; insights.onclick = () => switchView('insights');
   actions.append(again, insights);
   result.append(stats, actions);
+  if (run.passage) {
+    const source = node('a', 'passage-source', `${run.passage.title} · ${run.passage.author} ↗`);
+    source.href = run.passage.sourceUrl;
+    source.target = '_blank';
+    source.rel = 'noopener noreferrer';
+    result.append(source);
+  }
   $('#test-running').hidden = true;
   result.hidden = false;
 }
@@ -134,6 +161,8 @@ function finishPractice() {
 function newPractice(focus = false, requestedPattern = null) {
   if (practiceRun && !practiceRun.finished) persistRun(practiceRun, false);
   if (practiceRun) stopRun(practiceRun);
+  // Build a fresh line from cached analysis whenever the user starts over or
+  // chooses a specific pattern from the insights view.
   const data = currentAnalysis();
   const set = buildPracticeSet(data, COMMON_WORDS, KEY_WORDS, requestedPattern);
   const root = $('#practice-content');
@@ -199,11 +228,19 @@ function switchView(view) {
   window.scrollTo(0, 0);
 }
 
+// Navigation and controls use data attributes so the same handlers work for
+// the desktop and responsive layouts.
 document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', () => switchView(link.dataset.view)));
 document.querySelectorAll('[data-practice-mode]').forEach(button => button.addEventListener('click', () => activatePracticeMode(button.dataset.practiceMode)));
 function syncModeControls() {
+  const isPassage = testConfig.style === 'passage';
+  $('#generated-controls').hidden = isPassage;
+  $('#bank-controls').hidden = isPassage;
+  $('#passage-controls').hidden = !isPassage;
   document.querySelectorAll('[data-test-kind]').forEach(button => button.classList.toggle('selected', button.dataset.testKind === testConfig.kind));
   document.querySelectorAll('[data-text-style]').forEach(button => button.classList.toggle('selected', button.dataset.textStyle === testConfig.style));
+  document.querySelectorAll('[data-bank]').forEach(button => button.classList.toggle('selected', button.dataset.bank === testConfig.bank));
+  document.querySelectorAll('[data-passage-length]').forEach(button => button.classList.toggle('selected', button.dataset.passageLength === testConfig.passageLength));
   const amounts = testConfig.kind === 'time' ? [15, 30, 60] : [25, 50, 100];
   document.querySelectorAll('[data-test-amount]').forEach((button, index) => {
     button.dataset.testAmount = String(amounts[index]);
@@ -227,6 +264,16 @@ document.querySelectorAll('[data-text-style]').forEach(button => button.addEvent
   syncModeControls();
   resetTest(true);
 }));
+document.querySelectorAll('[data-bank]').forEach(button => button.addEventListener('click', () => {
+  testConfig.bank = button.dataset.bank;
+  syncModeControls();
+  resetTest(true);
+}));
+document.querySelectorAll('[data-passage-length]').forEach(button => button.addEventListener('click', () => {
+  testConfig.passageLength = button.dataset.passageLength;
+  syncModeControls();
+  resetTest(true);
+}));
 $('#restart-test').addEventListener('click', () => resetTest(true));
 window.addEventListener('resize', () => { if (testRun) positionCaret(testRun); if (practiceRun) positionCaret(practiceRun); if (sprintMounted) sprint.resize(); });
 window.addEventListener('pagehide', () => {
@@ -237,8 +284,8 @@ window.addEventListener('pagehide', () => {
 async function initialize() {
   sessionsCache = await loadSessions();
   analysisCache = null;
+  syncModeControls();
   resetTest();
   switchView(['test', 'insights', 'practice'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'test');
 }
 void initialize();
-

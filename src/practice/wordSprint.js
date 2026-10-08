@@ -4,6 +4,7 @@ export const SPRINT_LEVELS = {
   hard: { minLength: 7, maxLength: 20 },
 };
 
+// Convert the standard five-character word into the time allowed for a sprint.
 export function sprintTargetMs(word, targetWpm) {
   if (!Number.isFinite(targetWpm) || targetWpm <= 0) throw new RangeError('Target WPM must be positive');
   return Math.round((word.length / 5) * (60000 / targetWpm));
@@ -19,6 +20,8 @@ export function chooseSprintWord(difficulty, analysis, wordBank, previous = null
   ];
   const priority = [...new Set(difficult.filter(eligible))];
   const general = [...new Set(wordBank.filter(eligible))];
+  // Favor words tied to observed mistakes, but keep enough random vocabulary
+  // to prevent every sprint from repeating the same targets.
   const source = priority.length && random() < 0.7 ? priority : general;
   const choices = source.filter((word) => word !== previous);
   const alternatives = general.filter((word) => word !== previous);

@@ -26,10 +26,11 @@
       </header>
 
       <main>
+        <!-- The test view owns the main typing surface and its configuration controls. -->
         <section id="test-view" class="view active" aria-label="Typing test">
           <div class="test-center">
             <div class="mode-controls">
-              <div class="mode-bar" role="group" aria-label="Test length">
+              <div class="mode-bar" id="generated-controls" role="group" aria-label="Test length">
                 <button class="mode-option selected" data-test-kind="time" type="button">time</button>
                 <button class="mode-option" data-test-kind="words" type="button">count</button>
                 <span class="mode-divider" aria-hidden="true"></span>
@@ -40,7 +41,16 @@
               <div class="mode-bar" role="group" aria-label="Text style">
                 <button class="mode-option selected" data-text-style="words" type="button">words</button>
                 <button class="mode-option" data-text-style="punctuation" type="button">punctuation</button>
-                <button class="mode-option" data-text-style="sentences" type="button">sentences</button>
+                <button class="mode-option" data-text-style="passage" type="button">passages</button>
+              </div>
+              <div class="mode-bar" id="bank-controls" role="group" aria-label="Word bank">
+                <button class="mode-option selected" data-bank="common" type="button">common</button>
+                <button class="mode-option" data-bank="extended" type="button">extended</button>
+              </div>
+              <div class="mode-bar" id="passage-controls" role="group" aria-label="Passage length" hidden>
+                <button class="mode-option selected" data-passage-length="short" type="button">short</button>
+                <button class="mode-option" data-passage-length="medium" type="button">medium</button>
+                <button class="mode-option" data-passage-length="long" type="button">long</button>
               </div>
             </div>
             <div id="test-running" class="typing-area">
@@ -56,11 +66,13 @@
           </div>
         </section>
 
+        <!-- Insights are rendered into this container after sessions are loaded. -->
         <section id="insights-view" class="view" aria-labelledby="insights-heading">
           <div class="section-heading"><h1 id="insights-heading">insights</h1></div>
           <div id="insights-content"></div>
         </section>
 
+        <!-- Focus practice and word sprint replace the contents of this view. -->
         <section id="practice-view" class="view" aria-labelledby="practice-heading">
           <div class="section-heading"><h1 id="practice-heading">practice</h1></div>
           <div class="practice-mode-bar" role="group" aria-label="Practice mode">

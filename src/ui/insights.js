@@ -17,6 +17,17 @@ const shortDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'earlier' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
+let selectedComparison = null;
+
+// Group speed charts by settings so unlike tests are not compared directly.
+function comparison(session) {
+  if (session.textStyle === 'passage') return { key: `passage:${session.passageLength || 'short'}`, label: `${session.passageLength || 'short'} passages` };
+  const kind = session.testKind === 'words' ? 'words' : 'time';
+  const amount = session.testLimit || (kind === 'time' ? 30 : 50);
+  const style = session.textStyle || 'words';
+  const tier = session.corpusTier || 'original';
+  return { key: `${style}:${kind}:${amount}:${tier}`, label: `${style} · ${amount} ${kind === 'time' ? 'sec' : 'words'} · ${tier}` };
+}
 
 function addMetric(parent, value, label) {
   const metric = el('div', 'summary-metric');
@@ -28,7 +39,8 @@ function trendChart(title, sessions, field, unit) {
   const figure = el('figure', 'trend-chart');
   const heading = el('div', 'chart-heading');
   heading.append(el('h2', '', title));
-  const values = sessions.slice(-20).map((session) => ({ value: Number(session[field]), date: session.date, mode: session.testKind === 'words' ? `${session.testLimit} words` : `${session.testLimit || 'timed'} sec`, style: session.textStyle || 'words' })).filter((item) => Number.isFinite(item.value));
+  // Limit the chart to recent tests so it stays readable as history grows.
+  const values = sessions.slice(-20).map((session) => ({ value: Number(session[field]), date: session.date, mode: comparison(session).label, style: session.passageTitle || session.textStyle || 'words' })).filter((item) => Number.isFinite(item.value));
   heading.append(el('strong', '', values.length ? `${field === 'accuracy' ? percent(values.at(-1).value) : `${values.at(-1).value} ${unit}`}` : '—'));
   figure.append(heading);
   if (values.length < 2) {
@@ -166,16 +178,38 @@ export function renderInsights(root, data, onPractice) {
     root.append(el('p', 'empty-message', 'Complete a typing test to start building your baseline.'), trainingHistory(data.practiceGroups));
     return;
   }
-  const intro = el('p', 'insight-intro', 'Completed tests set your baseline across time, word count, and text styles. Practice runs are counted separately.');
+  const intro = el('p', 'insight-intro', 'Speed trends compare tests with the same settings. Key and pattern insights use every completed test.');
+  // The selector controls which comparable test group feeds the speed chart
+  // and summary, while accuracy and pattern data still use all tests.
+  const groups = new Map();
+  for (const session of data.tests) {
+    const mode = comparison(session);
+    if (!groups.has(mode.key)) groups.set(mode.key, { label: mode.label, sessions: [] });
+    groups.get(mode.key).sessions.push(session);
+  }
+  const latestKey = comparison(data.tests.at(-1)).key;
+  if (!groups.has(selectedComparison)) selectedComparison = latestKey;
+  const selector = el('select', 'comparison-select');
+  selector.setAttribute('aria-label', 'Speed comparison mode');
+  for (const [key, group] of groups) {
+    const option = el('option', '', `${group.label} (${group.sessions.length})`);
+    option.value = key;
+    selector.append(option);
+  }
+  selector.value = selectedComparison;
+  selector.addEventListener('change', () => { selectedComparison = selector.value; renderInsights(root, data, onPractice); });
+  const selected = groups.get(selectedComparison).sessions;
+  const speeds = selected.filter(session => Number.isFinite(session.wpm));
+  const averageWpm = speeds.length ? Math.round(speeds.reduce((sum, session) => sum + session.wpm, 0) / speeds.length) : '—';
   const summary = el('div', 'summary-row');
-  addMetric(summary, data.tests.length, 'tests');
-  addMetric(summary, data.averageWpm ?? '—', 'average wpm');
-  addMetric(summary, data.accuracy === null ? '—' : percent(data.accuracy), 'key accuracy');
+  addMetric(summary, selected.length, 'matching tests');
+  addMetric(summary, averageWpm, 'average wpm');
+  addMetric(summary, data.accuracy === null ? '—' : percent(data.accuracy), 'all-test key accuracy');
   addMetric(summary, data.practice.length, 'practice attempts');
   const charts = el('div', 'chart-grid');
-  charts.append(trendChart('speed', data.tests, 'wpm', 'wpm'), trendChart('accuracy', data.tests, 'accuracy', '%'));
-  const note = el('p', 'data-note', `${data.detailedTests} detailed ${data.detailedTests === 1 ? 'test' : 'tests'} available for pattern timing. Chart dots show the test mode and style on hover. Older tests still count toward speed and key accuracy. “Early signal” means fewer than 8 attempts or fewer than 2 distinct words.`);
-  root.append(intro, summary, charts, note);
+  charts.append(trendChart('speed', selected, 'wpm', 'wpm'), trendChart('accuracy', selected, 'accuracy', '%'));
+  const note = el('p', 'data-note', `${data.tests.length} completed tests feed key and pattern insights. ${data.detailedTests} have detailed timing. “Early signal” means fewer than 8 attempts or fewer than 2 distinct words.`);
+  root.append(intro, selector, summary, charts, note);
   root.append(patternSection('word patterns', 'Three to five letters within a word. An error means at least one wrong key in that occurrence. Pace compares time per transition with your clean-key baseline.', data.longPatterns, onPractice));
   root.append(patternSection('key transitions', 'Two-letter sequences within a word. Counts are across completed tests.', data.pairs, onPractice));
   const details = el('div', 'detail-grid');
