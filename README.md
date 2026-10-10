@@ -12,6 +12,16 @@ npm run dev
 Open the URL printed by Vite. Use `npm run build` for a production build.
 Use `node scripts/validate-corpus.mjs` to check corpus counts, uniqueness, and provenance.
 
+## Deploy to GitHub Pages
+
+The workflow in `.github/workflows/deploy.yml` builds the site for the repository path and deploys it on every push to `main`.
+
+1. In the GitHub repository, open **Settings → Pages**. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+2. Push this workflow to `main`. The **Deploy to GitHub Pages** workflow will run automatically. You can also start it from the **Actions** tab.
+3. After the workflow succeeds, visit <https://zavayu.github.io/turtletype/>.
+
+The build uses Vite's `/turtletype/` base path so scripts and styles load from the GitHub Pages project URL. If the repository is renamed or a custom domain is added, update the `--base` value in the workflow.
+
 Results are stored locally in IndexedDB, with a local-storage fallback. No account or backend is required.
 
 Accuracy counts correct character attempts. Backspace is not counted and does not erase mistakes. Completed tests drive insights; practice data stays separate.
